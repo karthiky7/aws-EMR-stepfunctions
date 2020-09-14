@@ -1,0 +1,71 @@
+{
+    "Comment": "To Train and deploy the model in sagemaker for dom-email-classification",
+    "StartAt": "EmailClassificationTrainModel",
+    "States": {
+        "EmailClassificationTrainModel": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:eu-west-1:373144206488:function:email_classification_train_model",
+            "ResultPath": "$",
+            "Next": "CheckTrainingJobStatus"
+        },
+        "CheckTrainingJobStatus": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:eu-west-1:373144206488:function:describe-training-model-status",
+            "ResultPath": "$",
+            "Next": "CheckTrainingStatusType"
+        },
+        "CheckTrainingStatusType": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Or": [{
+                    "Variable": "$.status",
+                    "StringEquals": "Completed"
+                  }
+                 ],
+                "Next": "StartModelDeployment"
+              },
+              {
+                "Or": [{
+                    "Variable": "$.status",
+                    "StringEquals": "InProgress"
+                  }
+                ],
+                "Next": "WaitTrainingJobIsInProgress"
+              },
+              {
+                "Or": [{
+                    "Variable": "$.status",
+                    "StringEquals": "Failed"
+                  }
+                ],
+                "Next": "TrainingJobFailState"
+              }
+            ],
+            "Default": "OtherExceptionsFailState"
+          },
+          "WaitTrainingJobIsInProgress": {
+            "Type": "Wait",
+            "Seconds": 300,
+            "Next": "CheckTrainingJobStatus"
+          },
+          "StartModelDeployment": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:eu-west-1:373144206488:function:deploy-emailclassification-model",
+            "End": true,
+            "Catch": [ {
+                "ErrorEquals": ["States.ALL"],
+                "Next": "OtherExceptionsFailState"
+             } ]
+          },
+          "TrainingJobFailState": {
+            "Type": "Fail",
+            "Cause": "Training Job got failed"
+          },
+          "OtherExceptionsFailState": {
+            "Type": "Fail",
+            "Cause": "Failure in lambda execution in StartModelDeployment or choice mismatch in CheckTrainingStatusType state"
+          }
+
+    }
+}
